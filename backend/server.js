@@ -28,7 +28,10 @@ app.post('/api/analyze', upload.single('resume'), async (req, res) => {
 
         // Bulletproof PDF extraction
 const extractPdf = typeof pdfParse === 'function' ? pdfParse : pdfParse.default;
-if (!extractPdf) throw new Error("Render failed to load the PDF library.");
+if (!extractPdf) {
+    throw new Error("Debug Info - Type: " + typeof pdfParse + " | Keys: " + (pdfParse ? Object.keys(pdfParse).join(', ') : 'null'));
+}
+
 const pdfData = await extractPdf(req.file.buffer);
 
         const extractedText = pdfData.text;
