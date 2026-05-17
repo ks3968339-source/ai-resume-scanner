@@ -26,7 +26,11 @@ app.post('/api/analyze', upload.single('resume'), async (req, res) => {
         if (!req.file) return res.status(400).json({ error: 'No PDF uploaded.' });
         if (!req.body.jobDescription) return res.status(400).json({ error: 'Job description is required.' });
 
-        const pdfData = await pdfParse(req.file.buffer);
+        // Bulletproof PDF extraction
+const extractPdf = typeof pdfParse === 'function' ? pdfParse : pdfParse.default;
+if (!extractPdf) throw new Error("Render failed to load the PDF library.");
+const pdfData = await extractPdf(req.file.buffer);
+
         const extractedText = pdfData.text;
         const jobDescription = req.body.jobDescription;
 
