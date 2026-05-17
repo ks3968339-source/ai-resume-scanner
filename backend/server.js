@@ -27,12 +27,9 @@ app.post('/api/analyze', upload.single('resume'), async (req, res) => {
         if (!req.body.jobDescription) return res.status(400).json({ error: 'Job description is required.' });
 
         // Bulletproof PDF extraction
-const extractPdf = typeof pdfParse === 'function' ? pdfParse : pdfParse.default;
-if (!extractPdf) {
-    throw new Error("Debug Info - Type: " + typeof pdfParse + " | Keys: " + (pdfParse ? Object.keys(pdfParse).join(', ') : 'null'));
-}
-
+const extractPdf = typeof pdfParse === 'function' ? pdfParse : pdfParse.PDFParse;
 const pdfData = await extractPdf(req.file.buffer);
+
 
         const extractedText = pdfData.text;
         const jobDescription = req.body.jobDescription;
