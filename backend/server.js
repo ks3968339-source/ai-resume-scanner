@@ -58,18 +58,22 @@ app.post('/api/analyze', upload.single('resume'), async (req, res) => {
             }
         });
 
-        const result = await model.generateContent(prompt);
-        const responseText = result.response.text();
+                const result = await model.generateContent(prompt);
+        let responseText = result.response.text();
+        
+        // Sometimes Gemini adds markdown code blocks, which breaks JSON parsing. This cleans it up safely:
+        responseText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
         
         const aiAnalysis = JSON.parse(responseText);
         res.json(aiAnalysis);
 
     } catch (error) {
-        console.error("Error analyzing resume:", error);
-        res.status(500).json({ error: 'An error occurred during analysis.' });
+        console.error("Backend Crash Error:", error);
+        // This will send the exact error message to your frontend alert box so we know what is broken!
+        res.status(500).json({ error: `Crash Reason: ${error.message}` });
     }
 });
 
 app.listen(PORT, () => {
-    console.log(`Backend server running on http://localhost:${PORT}`);
+    console.log(`Backend server running on port ${PORT}`);
 });
