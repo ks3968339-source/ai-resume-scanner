@@ -55,7 +55,7 @@ app.post('/api/analyze', upload.single('resume'), async (req, res) => {
         `;
 
         const model = genAI.getGenerativeModel({ 
-        model: "gemini-pro",
+        model: "gemini-1.5-flash",
 
             generationConfig: {
                 responseMimeType: "application/json", 
