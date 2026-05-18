@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
-const pdfParse = require('pdf-parse');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 require('dotenv').config();
 
@@ -21,30 +20,32 @@ const upload = multer({
     }
 });
 
+// Extract text from PDF buffer using pdfjs-dist (Mozilla's official PDF library)
+async function extractTextFromPDF(buffer) {
+    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const uint8Array = new Uint8Array(buffer);
+    const loadingTask = pdfjsLib.getDocument({ data: uint8Array });
+    const pdfDocument = await loadingTask.promise;
+
+    let fullText = '';
+    for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
+        const page = await pdfDocument.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map(item => item.str).join(' ');
+        fullText += pageText + '\n';
+    }
+    return fullText.trim();
+}
+
 app.post('/api/analyze', upload.single('resume'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'No PDF uploaded.' });
         if (!req.body.jobDescription) return res.status(400).json({ error: 'Job description is required.' });
 
-        // Bulletproof PDF extraction - handles all Render environment quirks
-        let pdfData;
-        if (typeof pdfParse === 'function') {
-            // Normal case: pdf-parse is a direct function
-            pdfData = await pdfParse(req.file.buffer);
-        } else if (pdfParse.default && typeof pdfParse.default === 'function') {
-            // ES module interop case
-            pdfData = await pdfParse.default(req.file.buffer);
-        } else if (pdfParse.PDFParse) {
-            // Render class case: must instantiate THEN call .parse(buffer)
-            const instance = new pdfParse.PDFParse();
-            pdfData = await instance.parse(req.file.buffer);
-        } else {
-            throw new Error('PDF library failed to load. Keys: ' + Object.keys(pdfParse).join(', '));
-        }
+        const extractedText = await extractTextFromPDF(req.file.buffer);
 
-        const extractedText = pdfData ? pdfData.text : '';
-        if (!extractedText || extractedText.trim().length < 10) {
-            return res.status(400).json({ error: `PDF text extraction returned empty content. PDF type may not be supported. Extracted: "${extractedText ? extractedText.substring(0, 50) : 'nothing'}"` });
+        if (!extractedText || extractedText.length < 10) {
+            return res.status(400).json({ error: 'Could not extract text from this PDF. Please make sure it is a text-based PDF, not a scanned image.' });
         }
 
         const jobDescription = req.body.jobDescription;
@@ -79,8 +80,6 @@ app.post('/api/analyze', upload.single('resume'), async (req, res) => {
 
         const result = await model.generateContent(prompt);
         let responseText = result.response.text();
-        
-        // Strip any accidental markdown wrappers
         responseText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
         
         const aiAnalysis = JSON.parse(responseText);
