@@ -26,18 +26,30 @@ app.post('/api/analyze', upload.single('resume'), async (req, res) => {
         if (!req.file) return res.status(400).json({ error: 'No PDF uploaded.' });
         if (!req.body.jobDescription) return res.status(400).json({ error: 'Job description is required.' });
 
-        // Bulletproof PDF extraction
-        const extractPdf = typeof pdfParse === 'function' ? pdfParse : pdfParse.PDFParse;
-        const pdfData = await new extractPdf(req.file.buffer);
+        // Bulletproof PDF extraction - handles all Render environment quirks
+        let pdfData;
+        if (typeof pdfParse === 'function') {
+            pdfData = await pdfParse(req.file.buffer);
+        } else if (pdfParse.default && typeof pdfParse.default === 'function') {
+            pdfData = await pdfParse.default(req.file.buffer);
+        } else if (pdfParse.PDFParse) {
+            pdfData = await new pdfParse.PDFParse(req.file.buffer);
+        } else {
+            throw new Error('PDF library failed to load. Keys: ' + Object.keys(pdfParse).join(', '));
+        }
 
         const extractedText = pdfData.text;
+        if (!extractedText || extractedText.trim().length < 10) {
+            return res.status(400).json({ error: 'Could not extract text from PDF. Please make sure it is a text-based PDF (not a scanned image).' });
+        }
+
         const jobDescription = req.body.jobDescription;
 
         const prompt = `
             You are an expert ATS (Applicant Tracking System) and Senior Tech Recruiter.
             Analyze the following Resume against the provided Job Description.
             
-            You must return ONLY a raw JSON object. Do not use markdown wrappers like \`\`\`json.
+            Return ONLY a valid raw JSON object with no markdown formatting.
             
             The JSON structure MUST exactly match this:
             {
@@ -55,9 +67,7 @@ app.post('/api/analyze', upload.single('resume'), async (req, res) => {
         `;
 
         const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.0-flash",
-
-
+            model: "gemini-1.5-flash",
             generationConfig: {
                 responseMimeType: "application/json", 
             }
@@ -66,7 +76,7 @@ app.post('/api/analyze', upload.single('resume'), async (req, res) => {
         const result = await model.generateContent(prompt);
         let responseText = result.response.text();
         
-        // Sometimes Gemini adds markdown code blocks, which breaks JSON parsing. This cleans it up safely:
+        // Strip any accidental markdown wrappers
         responseText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
         
         const aiAnalysis = JSON.parse(responseText);
@@ -74,7 +84,6 @@ app.post('/api/analyze', upload.single('resume'), async (req, res) => {
 
     } catch (error) {
         console.error("Backend Crash Error:", error);
-        // This will send the exact error message to your frontend alert box so we know what is broken!
         res.status(500).json({ error: `Crash Reason: ${error.message}` });
     }
 });
