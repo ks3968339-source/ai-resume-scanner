@@ -27,9 +27,8 @@ app.post('/api/analyze', upload.single('resume'), async (req, res) => {
         if (!req.body.jobDescription) return res.status(400).json({ error: 'Job description is required.' });
 
         // Bulletproof PDF extraction
-const extractPdf = typeof pdfParse === 'function' ? pdfParse : pdfParse.PDFParse;
-const pdfData = await new extractPdf(req.file.buffer);
-
+        const extractPdf = typeof pdfParse === 'function' ? pdfParse : pdfParse.PDFParse;
+        const pdfData = await new extractPdf(req.file.buffer);
 
         const extractedText = pdfData.text;
         const jobDescription = req.body.jobDescription;
@@ -56,13 +55,13 @@ const pdfData = await new extractPdf(req.file.buffer);
         `;
 
         const model = genAI.getGenerativeModel({ 
-            model: "gemini-1.5-flash",
+            model: "gemini-1.5-flash-latest",
             generationConfig: {
                 responseMimeType: "application/json", 
             }
         });
 
-                const result = await model.generateContent(prompt);
+        const result = await model.generateContent(prompt);
         let responseText = result.response.text();
         
         // Sometimes Gemini adds markdown code blocks, which breaks JSON parsing. This cleans it up safely:
