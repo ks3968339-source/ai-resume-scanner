@@ -29,18 +29,22 @@ app.post('/api/analyze', upload.single('resume'), async (req, res) => {
         // Bulletproof PDF extraction - handles all Render environment quirks
         let pdfData;
         if (typeof pdfParse === 'function') {
+            // Normal case: pdf-parse is a direct function
             pdfData = await pdfParse(req.file.buffer);
         } else if (pdfParse.default && typeof pdfParse.default === 'function') {
+            // ES module interop case
             pdfData = await pdfParse.default(req.file.buffer);
         } else if (pdfParse.PDFParse) {
-            pdfData = await new pdfParse.PDFParse(req.file.buffer);
+            // Render class case: must instantiate THEN call .parse(buffer)
+            const instance = new pdfParse.PDFParse();
+            pdfData = await instance.parse(req.file.buffer);
         } else {
             throw new Error('PDF library failed to load. Keys: ' + Object.keys(pdfParse).join(', '));
         }
 
-        const extractedText = pdfData.text;
+        const extractedText = pdfData ? pdfData.text : '';
         if (!extractedText || extractedText.trim().length < 10) {
-            return res.status(400).json({ error: 'Could not extract text from PDF. Please make sure it is a text-based PDF (not a scanned image).' });
+            return res.status(400).json({ error: `PDF text extraction returned empty content. PDF type may not be supported. Extracted: "${extractedText ? extractedText.substring(0, 50) : 'nothing'}"` });
         }
 
         const jobDescription = req.body.jobDescription;
