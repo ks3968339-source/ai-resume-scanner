@@ -28,7 +28,7 @@ app.post('/api/analyze', upload.single('resume'), async (req, res) => {
 
         // Bulletproof PDF extraction
 const extractPdf = typeof pdfParse === 'function' ? pdfParse : pdfParse.PDFParse;
-const pdfData = await extractPdf(req.file.buffer);
+const pdfData = await new extractPdf(req.file.buffer);
 
 
         const extractedText = pdfData.text;
